@@ -5,8 +5,32 @@ import random
 import checks
 import logging
 import uuid
-bot = commands.Bot(command_prefix='.', description='test bot')
+import sys
+import time
+import datetime
+import timeit
+import traceback
+import aiohttp
+import json
+import os, os.path
+import argparse
+import ast
+import requests
+from apiclient.discovery import build as gapibuild
+from apiclient.discovery import build
+from apiclient.errors import HttpError
+from oauth2client.tools import argparser
+import os
+errors = []
 
+# Set DEVELOPER_KEY to the API key value from the APIs & auth > Registered apps
+# tab of
+#   https://cloud.google.com/console
+# Please ensure that you have enabled the YouTube Data API for your project.
+DEVELOPER_KEY = str(os.getenv('AIzaSyAmwK01_ReaR29VYwJnz98Wk20shXxlF-4'))
+YOUTUBE_API_SERVICE_NAME = "youtube"
+YOUTUBE_API_VERSION = "v3"
+bot = commands.Bot(command_prefix='.', description='test bot')
 
 
 @bot.event
@@ -108,9 +132,10 @@ async def serverid():
 	await bot.say('The ID of this server is 350088997995020298') #need to change this so i get the id of any server it is in
 
 
-@bot.command(pass_context=True, hidden=True)
-async def get_id(ctx):
+@bot.command(pass_context=True)
+async def getid(ctx):
     await bot.say(ctx.message.author.id)
+    
 @bot.command(pass_context=True, no_pm=True)
 async def join(ctx, *, channel : discord.Channel = None): # !!join
         """Joins a voice channel."""
@@ -156,6 +181,18 @@ async def prune(ctx, limit : int): # !!prune
             else:
                 await bot.say(':zap: Deleted {} messages.'.format(counter))
                 
+@bot.command(pass_context=True, hidden=True)
+async def setplaying(ctx, *, game : str): # !!setplaying
+	if ctx.message.author.id == '188952933323243520' or ctx.message.author.id == '173547110388465664':
+         try:
+                await bot.change_presence(game=discord.Game(name=game), status=ctx.message.server.me.status)
+                logging.info("Set game to " + str(game))
+         except Exception as e:
+            await bot.say("Failed to set game: {}".format(str(e)), ctx)
+	else:
+		await bot.say("You must be a bot admin to do this!")
+        
+     
 @checks.mod_or_permissions(manage_channels=True)
 @bot.command(pass_context=True, no_pm=True)
 async def ban(ctx, user : discord.Member, *, reason : str = "*No reason was provided.*"):
@@ -198,5 +235,166 @@ async def unban(ctx, user : discord.Member, *, reason : str = "*No reason was pr
             raise
         else:
             await bot.say("Successfully banned " + str(user))
+           
+@bot.command(pass_context=True, aliases=["guilds"])
+async def servers(ctx): # !!servers
+        """Shows info on Etos's server's."""
+        await bot.send_typing(ctx.message.channel)
+        color = discord.Color.default()
+        if ctx.message.server is not None:
+            color = ctx.message.server.me.color
+        e = discord.Embed(color=color, title="Etos Servers", description="An average server has...")
+        tot = len(bot.servers)
+        roles = []
+        verification = 0
+        for s in bot.servers:
+            if str(s.verification_level) == "low":
+                verification += 1
+            elif str(s.verification_level) == "medium":
+                verification += 2
+            elif str(s.verification_level) == "high":
+                verification += 3
+            elif str(s.verification_level) == 4:
+                verification += 4
+            for r in s.roles:
+                roles.append(r)
+        e.add_field(name="Users", value=sum(1 for _ in bot.get_all_members()) / tot)
+        e.add_field(name="Channels", value=sum(1 for _ in bot.get_all_channels()) / tot)
+        e.add_field(name="Emojis", value=sum(1 for _ in bot.get_all_emojis()) / tot)
+        e.add_field(name="Roles", value=len(roles) / tot)
+        e.set_footer(text="{} servers total".format(tot))
+        verification = verification / tot
+        verif_name = None
+        if round(verification) == 0:
+            verif_name = "None"
+        elif round(verification) == 1:
+            verif_name = "Low"
+        elif round(verification) == 2:
+            verif_name = "Medium"
+        elif round(verification) == 3:
+            verif_name = "High / (╯°□°）╯︵ ┻━┻"
+        elif round(verification) == 4:
+            verif_name = "Extreme / ┻━┻ ﾐヽ(ಠ益ಠ)ノ彡┻━┻"
+        e.add_field(name="Verification", value="{} ({})".format(verification, verif_name))
+        await bot.say(embed=e)
 
-bot.run('BOT TOKEN HERE')
+@bot.command(pass_context=True, aliases = ['botinfo', 'stats', 'about'])
+async def info(ctx): # !!info
+        """Shows bot info."""
+        try:
+            global start_time
+            global errors
+            global st_servers
+            await bot.send_typing(ctx.message.channel)
+            pyver = ""
+            for x in sys.version_info[0:3]:
+                if x == sys.version_info[2]:
+                    pyver += str(x)
+                else:
+                    pyver += str(x) + "."
+            users = sum(1 for _ in bot.get_all_members())
+            logging.debug("Got all bot users")
+            color = discord.Color.default()
+            if ctx.message.server is not None:
+                color = ctx.message.server.me.color
+            embed = discord.Embed(color=color, title="Etos Statistics", description="Made by the Etos devs")
+            embed.set_footer(text="NanoBot#2520")
+            embed.set_thumbnail(url=bot.user.avatar_url)
+            embed.add_field(name="> Usage", value="**• servers:** {}\n**• Users:** {}".format(len(bot.servers), users))
+            logging.debug("Created Embed")
+            await bot.say(embed=embed)
+        except:
+            raise
+            
+cmds_this_session = []
+
+@bot.command(pass_context=True)
+async def ping(self, ctx): # !!ping
+        """Pong!"""
+        t = time.time()
+        mesg = await self.bot.say("Pong!")
+        t2 = time.time() - t
+        await self.bot.edit_message(mesg, "Pong! **{}ms**".format(round(t2*1000)))
+        
+@bot.command()
+
+async def yt(ctx):
+    """Youtube search link"""
+    await bot.say('https://www.youtube.com/results?search_query={}'.format (ctx))
+
+@bot.command()
+
+async def google(ctx):
+    """Google search link"""
+    await bot.say('https://www.google.com.au/search?q={}'.format(ctx))
+    
+@bot.event
+async def on_server_join(server): # When the bot joins a server
+    print(color.GREEN + "Joined server " + str(server.id)+ " (" + str(server.name) + ")")
+    logging.info("Joined server {0.name} (ID: {0.id})".format(server))
+    await post_stats()
+    try:
+        await bot.send_message(server.default_channel, ':wave: Hi, I\'m NanoBot! For help on what I can do, type `!!help`. Join the NanoBot Discord for support and updates: https://discord.io/nano-bot')
+    except:
+        pass
+    await bot.send_message(bot.get_channel(id="334385091482484736"), embed=embeds.server_join(server))
+
+@bot.event
+async def on_server_remove(server): # When the bot leaves a server
+    print(color.RED + "Left server " + str(server.id) + " (" + str(server.name) + ")")
+    logging.info("Left server {0.name} (ID: {0.id})".format(server))
+    await post_stats()
+    await bot.send_message(bot.get_channel(id="334385091482484736"), embed=embeds.server_leave(server))
+
+@bot.event
+async def on_member_join(member): # When a member joins a server
+    if str(member.server.id) == "294215057129340938" and not args.use_beta_token:
+        await bot.send_message(member.server.get_channel("314136139755945984"), ":wave: Welcome " + str(member.mention) + " to the server!")
+
+@bot.event
+async def on_member_ban(member): # When a member is banned from a server
+    pass
+
+@bot.event
+async def on_command_error(error, ctx): # When a command error occurrs
+    global errors
+    if isinstance(error, discord.ext.commands.errors.CommandNotFound):
+        pass
+    elif isinstance(error, discord.ext.commands.errors.CheckFailure):
+        if str(ctx.command).startswith("cmd"):
+            await bot.send_message(ctx.message.channel, embed=embeds.permission_denied("You need a role named `Admin` to do that."))
+        else:
+            await bot.send_message(ctx.message.channel, embed=embeds.permission_denied())
+    elif isinstance(error, discord.ext.commands.errors.MissingRequiredArgument):
+        await bot.send_message(ctx.message.channel, embed=embeds.invalid_syntax("You're missing required arguments! Type `!!help {}` for more help.".format(ctx.command)))
+    elif isinstance(error, TimeoutError):
+        pass
+    elif isinstance(error, discord.ext.commands.DisabledCommand):
+        await bot.send_message(ctx.message.channel, ":tools: This command is disabled!")
+    elif isinstance(error, discord.ext.commands.errors.BadArgument):
+        if ctx.command.name == "status":
+            await bot.send_message(ctx.message.channel, embed=embeds.invalid_syntax("That isn't a valid subcommand. Try typing '!!status help' for help."))
+        else:
+            await bot.send_message(ctx.message.channel, embed=embeds.invalid_syntax("Invalid argument!"))
+    elif isinstance(error, discord.errors.Forbidden) or isinstance(error, discord.Forbidden):
+        pass
+    elif isinstance(error, discord.ext.commands.errors.NoPrivateMessage):
+        await bot.send_message(ctx.message.channel, embed=embeds.error("This command can't be used in private messages.", ctx))
+    else:
+        if ctx.command:
+            errors.append(error)
+            _type, _value, _traceback = sys.exc_info()
+            logging.error(error.original)
+            if _traceback is not None:
+                logging.error(_traceback)
+            await bot.send_message(ctx.message.channel, embed=embeds.error(error, ctx))
+            try:
+                await bot.send_message(bot.get_channel(id="334385091482484736"), embed=embeds._err(error, ctx))
+            except Exception as e:
+                logging.warn("Failed to send error message to log channel")
+                logging.warn("{0}: {1}".format(type(e).__name__, e))
+                logging.warn(traceback.format_exc())
+
+
+
+bot.run('BOT TOKEN')
