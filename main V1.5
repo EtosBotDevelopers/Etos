@@ -30,6 +30,10 @@ async def retard():
 
 	await bot.say('Did you mean <@188952933323243520>')
 	
+@bot.command()
+async def serverid():
+	await bot.say('The ID of this server is 350088997995020298') #need to change this so i get the id of any server it is in
+	
 @checks.mod_or_permissions(manage_channels=True)	
 @bot.command()
 async def die():
