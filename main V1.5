@@ -110,6 +110,26 @@ async def serverid():
 @bot.command(pass_context=True, hidden=True)
 async def get_id(ctx):
     await bot.say(ctx.message.author.id)
-
+@checks.mod_or_permissions(manage_channels=True)	
+@bot.command(pass_context=True, no_pm=True, aliases=['purge', 'clear'])
+async def prune(ctx, limit : int): # !!prune
+        """Deletes the specified amount of messages. .prune (amount) (who)"""
+        global errors
+        if not limit > 1:
+            await bot.say(":no_entry_sign: You can only delete more than 1 message!")
+        else:
+            counter = -1
+            await bot.send_typing(ctx.message.channel)
+            try:
+                async for log in bot.logs_from(ctx.message.channel, limit=limit + 1):
+                    await bot.delete_message(log)
+                    counter += 1
+                    if counter % 5 == 0:
+                        await bot.send_typing(ctx.message.channel)
+            except Exception as e:
+                logging.error(str(e))
+                await bot.say(embed=embeds.error(str(e), ctx))
+            else:
+                await bot.say(':zap: Deleted {} messages.'.format(counter))
 
 bot.run('BOT TOKEN HERE')
